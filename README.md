@@ -24,7 +24,7 @@
 Установка (нужен Python 3; если его нет, скрипт предложит поставить инструменты Apple):
 
 ```bash
-git clone https://github.com/<ваш-логин>/my-ip.git ~/my-ip
+git clone https://github.com/alimbekmarat/my-ip.git ~/my-ip
 bash ~/my-ip/macos-menubar/install.sh
 ```
 
@@ -51,7 +51,7 @@ claude --plugin-dir ~/my-ip/claude-mod
 Чтобы мод загружался всегда, в том числе в приложении Claude, добавьте путь к папке в `~/.claude/settings.json`:
 
 ```json
-{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "/Users/<вы>/my-ip/claude-mod" } }
+{ "env": { "CLAUDE_CODE_PLUGIN_DIRS": "/Users/<ваше-имя>/my-ip/claude-mod" } }
 ```
 
 ## Windows / Linux: трей
