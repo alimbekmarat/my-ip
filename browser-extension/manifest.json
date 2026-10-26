@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Мой IP",
+  "version": "1.1",
+  "description": "Показывает внешний IP: проверка раз в минуту и по кнопке",
+  "permissions": ["alarms", "storage", "notifications"],
+  "host_permissions": ["https://ipwho.is/*", "https://ipapi.co/*", "https://api.ipify.org/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Мой IP" },
+  "icons": { "128": "icon128.png" }
+}

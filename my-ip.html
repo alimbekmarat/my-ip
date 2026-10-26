@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Мой IP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Manrope:wght@400;600;700&display=swap">
+<style>
+  /* Компактная карточка-виджет: IP крупно, статус и история ниже */
+  :root {
+    --bg: #eef1f4;
+    --card: #ffffff;
+    --fg: #17202b;
+    --muted: #66727f;
+    --line: #dde3e9;
+    --accent: #0f7b6c;
+    --warn: #b4531a;
+    --err: #c0392b;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1418; --card:#171e24; --fg:#e6edf2; --muted:#8b98a5; --line:#26313a; --accent:#3fc1a9; --warn:#f0a35e; --err:#ff7a6b; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:15px/1.5 var(--sans); padding:24px 16px; }
+  .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; display:grid; gap:18px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .label { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; margin-right:8px; vertical-align:middle; }
+  .dot.ok { background:var(--accent); box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .dot.busy { background:var(--warn); animation:pulse 1s infinite; }
+  .dot.err { background:var(--err); }
+  @keyframes pulse { 50% { opacity:.35 } }
+  @media (prefers-reduced-motion: reduce) { .dot.busy { animation:none } }
+  .ip { font:700 clamp(26px, 8vw, 36px)/1.15 var(--mono); letter-spacing:-.01em; word-break:break-all; cursor:pointer; }
+  .ip:hover { color:var(--accent); }
+  .geo { color:var(--muted); font-size:14px; margin-top:4px; min-height:1.5em; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  button { font:600 14px var(--sans); border-radius:10px; padding:10px 16px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--fg); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:var(--card); flex:1; }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button:disabled { opacity:.6; cursor:default; }
+  .meta { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .bar { height:3px; background:var(--line); border-radius:3px; overflow:hidden; }
+  .bar > i { display:block; height:100%; width:100%; background:var(--accent); transform-origin:left; }
+  .hist { display:grid; gap:6px; font:13px var(--mono); }
+  .hist div { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-top:1px solid var(--line); }
+  .hist span:last-child { color:var(--muted); }
+  .empty { color:var(--muted); font:13px var(--sans); }
+  .toast { font-size:13px; color:var(--accent); min-height:1.2em; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="top">
+    <span class="label"><span class="dot" id="dot"></span><span id="status">Проверяю…</span></span>
+    <span class="label" id="src"></span>
+  </div>
+
+  <div>
+    <div class="ip" id="ip" title="Нажми, чтобы скопировать">—</div>
+    <div class="geo" id="geo"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="row">
+    <button class="primary" id="btn">Проверить сейчас</button>
+    <button id="copy">Копировать</button>
+  </div>
+
+  <div>
+    <div class="meta"><span id="last">Ещё не проверялось</span><span id="next"></span></div>
+    <div class="bar"><i id="progress"></i></div>
+  </div>
+
+  <div>
+    <div class="label" style="margin-bottom:6px">Смены IP</div>
+    <div class="hist" id="hist"><span class="empty">Пока без изменений</span></div>
+  </div>
+</main>
+
+<script>
+const INTERVAL = 60; // секунд
+const $ = id => document.getElementById(id);
+
+// Несколько сервисов по очереди — если один лежит, берём следующий
+const PROVIDERS = [
+  { name: "ipapi.co", url: "https://ipapi.co/json/",
+    parse: d => ({ ip: d.ip, geo: [d.city, d.country_name, d.org].filter(Boolean).join(" · ") }) },
+  { name: "ipwho.is", url: "https://ipwho.is/",
+    parse: d => ({ ip: d.ip, geo: [d.city, d.country, d.connection && d.connection.isp].filter(Boolean).join(" · ") }) },
+  { name: "ipify", url: "https://api.ipify.org?format=json",
+    parse: d => ({ ip: d.ip, geo: "" }) },
+];
+
+let currentIp = null, timer = null, left = INTERVAL, busy = false;
+let history = [];
+try { history = JSON.parse(localStorage.getItem("ipHistory") || "[]"); } catch {}
+
+const fmt = d => d.toLocaleTimeString("ru-RU");
+const fmtFull = d => d.toLocaleString("ru-RU", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+
+function setStatus(kind, text) { $("dot").className = "dot " + kind; $("status").textContent = text; }
+
+function renderHistory() {
+  const box = $("hist");
+  if (!history.length) { box.innerHTML = '<span class="empty">Пока без изменений</span>'; return; }
+  box.innerHTML = "";
+  history.slice(0, 8).forEach(h => {
+    const row = document.createElement("div");
+    const a = document.createElement("span"); a.textContent = h.ip;
+    const b = document.createElement("span"); b.textContent = fmtFull(new Date(h.t));
+    row.append(a, b); box.append(row);
+  });
+}
+
+async function fetchWithTimeout(url, ms = 6000) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  try { const r = await fetch(url, { signal: c.signal, cache: "no-store" }); if (!r.ok) throw new Error(r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+
+async function check() {
+  if (busy) return;
+  busy = true; $("btn").disabled = true; setStatus("busy", "Проверяю…");
+  for (const p of PROVIDERS) {
+    try {
+      const res = p.parse(await fetchWithTimeout(p.url));
+      if (!res.ip) throw new Error("empty");
+      const changed = currentIp && currentIp !== res.ip;
+      const first = !history.length || history[0].ip !== res.ip;
+      currentIp = res.ip;
+      $("ip").textContent = res.ip;
+      if (res.geo) $("geo").textContent = res.geo;
+      $("src").textContent = p.name;
+      $("last").textContent = "Проверено в " + fmt(new Date());
+      if (first) { history.unshift({ ip: res.ip, t: Date.now() }); history = history.slice(0, 20);
+        try { localStorage.setItem("ipHistory", JSON.stringify(history)); } catch {} renderHistory(); }
+      setStatus("ok", changed ? "IP сменился!" : "Онлайн");
+      if (changed) flash("Новый IP: " + res.ip);
+      done(); return;
+    } catch (e) { /* пробуем следующий сервис */ }
+  }
+  setStatus("err", "Нет ответа");
+  $("last").textContent = "Ошибка в " + fmt(new Date()) + " — проверь сеть";
+  done();
+}
+
+function done() { busy = false; $("btn").disabled = false; restartTimer(); }
+
+function restartTimer() {
+  clearInterval(timer); left = INTERVAL; tick();
+  timer = setInterval(() => { left--; tick(); if (left <= 0) check(); }, 1000);
+}
+function tick() {
+  $("next").textContent = "Следующая через " + Math.max(left, 0) + " с";
+  $("progress").style.transform = "scaleX(" + Math.max(left, 0) / INTERVAL + ")";
+}
+
+function flash(msg) { $("toast").textContent = msg; setTimeout(() => $("toast").textContent = "", 2500); }
+
+async function copyIp() {
+  if (!currentIp) return;
+  try { await navigator.clipboard.writeText(currentIp); flash("Скопировано"); }
+  catch { const r = document.createRange(); r.selectNodeContents($("ip")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); flash("Выделено — жми Ctrl+C"); }
+}
+
+$("btn").addEventListener("click", check);
+$("copy").addEventListener("click", copyIp);
+$("ip").addEventListener("click", copyIp);
+renderHistory();
+check();
+</script>
+</body>
+</html>

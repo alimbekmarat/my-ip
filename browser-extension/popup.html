@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<style>
+  :root { --bg:#fff; --fg:#17202b; --muted:#66727f; --line:#dde3e9; --accent:#0f7b6c; --err:#c0392b; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#171e24; --fg:#e6edf2; --muted:#8b98a5; --line:#26313a; --accent:#3fc1a9; --err:#ff7a6b; color-scheme: dark; } }
+  body { margin:0; width:300px; padding:16px; background:var(--bg); color:var(--fg); font:14px/1.5 system-ui, "Segoe UI", sans-serif; display:grid; gap:12px; }
+  .label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .ip { font:700 26px/1.2 ui-monospace, Consolas, monospace; word-break:break-all; cursor:pointer; }
+  .ip:hover { color:var(--accent); }
+  .geo, .meta { color:var(--muted); font-size:13px; }
+  .err { color:var(--err); font-size:13px; }
+  .row { display:flex; gap:8px; }
+  button { font:600 13px system-ui, sans-serif; border-radius:8px; padding:8px 12px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--fg); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:var(--bg); flex:1; }
+  .hist div { display:flex; justify-content:space-between; font:12px ui-monospace, Consolas, monospace; padding:4px 0; border-top:1px solid var(--line); }
+  .hist span:last-child { color:var(--muted); }
+</style></head>
+<body>
+  <div>
+    <div class="label">Внешний IP</div>
+    <div class="ip" id="ip" title="Нажми, чтобы скопировать">—</div>
+    <div class="geo" id="geo"></div>
+    <div class="err" id="err"></div>
+  </div>
+  <div class="row">
+    <button class="primary" id="btn">Проверить сейчас</button>
+    <button id="copy">Копировать</button>
+  </div>
+  <div class="meta" id="meta">Автопроверка раз в минуту</div>
+  <div class="hist" id="hist"></div>
+  <script src="popup.js"></script>
+</body></html>

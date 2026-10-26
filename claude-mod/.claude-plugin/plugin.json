@@ -1,0 +1,1 @@
+{ "name": "my-ip", "version": "0.1.0", "description": "Внешний IP над полем ввода: проверка раз в минуту и по кнопке", "types": "./types/index.d.ts", "license": "MIT", "author": { "name": "Marat" } }
